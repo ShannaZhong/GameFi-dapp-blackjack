@@ -1,4 +1,3 @@
-# Step 1
 Steps described following are the way to develop the game. The branch is the step 1. Follow steps to create the a web3 game if you are a developer. 
 
 1. Initialize the project<br>
