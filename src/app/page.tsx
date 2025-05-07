@@ -12,8 +12,15 @@ export default function Page() {
   const [isSigned, setIsSigned] = useState<boolean>(false)
   const {signMessageAsync} = useSignMessage()
 
+  useEffect(() => {
+    if(message.includes("win") || message.includes("lose") || message.includes("Draw")) {
+      localStorage.setItem(`${address}`, JSON.stringify(score))
+    }
+  }, [message])
+
   const initGame = async () => {
-    const response = await fetch('/api', {method: 'GET'})
+    const storedScore = localStorage.getItem(`${address}`);
+    const response = await fetch(`/api?address=${address}&score=${storedScore}`, {method: 'GET'})
     const data = await response.json()
     setDealerHand(data.dealerHand)
     setPlayerHand(data.playerHand)
@@ -22,7 +29,13 @@ export default function Page() {
   }
 
   async function handleHit() {
-    const response = await fetch('/api', {method: 'POST', body: JSON.stringify({action: 'hit'})})
+    const response = await fetch('/api', {
+      method: 'POST', 
+      headers: {
+        bearer: `Bearer ${localStorage.getItem('jwt') || ''}`,
+      },
+      body: JSON.stringify({action: 'hit', address})
+    })
     const data = await response.json()
     setDealerHand(data.dealerHand)
     setPlayerHand(data.playerHand)
@@ -31,7 +44,13 @@ export default function Page() {
   }
 
   async function handleStand() {
-    const response = await fetch('/api', {method: 'POST', body: JSON.stringify({action: 'stand'})})
+    const response = await fetch('/api', {
+      method: 'POST', 
+      headers: {
+        bearer: `Bearer ${localStorage.getItem('jwt') || ''}`,
+      },
+      body: JSON.stringify({action: 'stand', address})
+    })
     const data = await response.json()
     setDealerHand(data.dealerHand)
     setPlayerHand(data.playerHand)
@@ -40,7 +59,7 @@ export default function Page() {
   }
 
   async function handleReset() {
-    const response = await fetch('/api', {method: 'GET'})
+    const response = await fetch(`/api?address=${address}`, {method: 'GET'})
     const data = await response.json()
     setDealerHand(data.dealerHand)
     setPlayerHand(data.playerHand)
@@ -59,6 +78,8 @@ export default function Page() {
     })})
 
     if(response.status === 200) {
+      const { jsonwebtoken } = await response.json()
+      localStorage.setItem('jwt', jsonwebtoken)
       setIsSigned(true)
       console.log("Signature is valid")
       initGame()

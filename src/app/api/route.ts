@@ -1,4 +1,6 @@
 import { verifyMessage } from "viem";
+// 权限控制、签名验证、jwt
+import jwt from "jsonwebtoken";
 
 // when the game is inited, get player and dealer 2 random cards respectiviely
 export interface Card {
@@ -34,7 +36,14 @@ function getRandomCards(deck: Card[], count: number) {
   return [randomCards, remainingDeck]
 }
 
-export function GET() {
+export function GET(request: Request) {
+  const url = new URL(request.url)
+  const address = url.searchParams.get("address")
+  const score = url.searchParams.get("score")
+  if(!address) {
+    return new Response(JSON.stringify({ message: "Invalid address" }), {status: 400})
+  }
+
   // reset the game state
   gameState.playerHand = []
   gameState.dealerHand = []
@@ -47,6 +56,9 @@ export function GET() {
   gameState.dealerHand = dealerCards
   gameState.deck = newDeck
   gameState.message = ""
+  if(score && !isNaN(parseInt(score))) {
+    gameState.score = parseInt(score)
+  }
   return new Response(JSON.stringify(
     {
       playerHand: gameState.playerHand,
@@ -61,15 +73,26 @@ export function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const { action } = body
+  const { action, address } = body
   if(action === "auth") {
     const { address, message, signature } = body;
     const isVaild = await verifyMessage({address, message, signature})
     if(!isVaild) {
       return new Response(JSON.stringify({ message: "Invalid signature" }), {status: 400})
     } else {
-      return new Response(JSON.stringify({ message: "Valid signature" }), {status: 200})
+      const token = jwt.sign({ address }, process.env.JWT_SECRET || "", {expiresIn: "1h"})
+      return new Response(JSON.stringify({ message: "Valid signature", jsonwebtoken: token }), {status: 200})
     }
+  }
+
+  // check the token is valid
+  const token = request.headers.get("bearer")?.split(" ")[1]
+  if(!token) {
+    return new Response(JSON.stringify({ message: "Token is required" }), {status: 401})
+  }
+  const decode = jwt.verify(token, process.env.JWT_SECRET || "") as { address: string }
+  if(decode.address.toLocaleLowerCase() !== address.toLocaleLowerCase()) {
+    return new Response(JSON.stringify({ message: "Invalid token" }), {status: 401})
   }
 
   // when hit is clicked, get 1 random card from the deck and add it to the player's hand
