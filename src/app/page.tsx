@@ -1,23 +1,25 @@
 'use client'
 import { useEffect, useState } from "react"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { useAccount, useSignMessage } from "wagmi"
 
 export default function Page() {
   const [message, setMessage] = useState("")
   const [playerHand, setPlayerHand] = useState<{rank: string, suit: string}[]>([])
   const [dealerHand, setDealerHand] = useState<{rank: string, suit: string}[]>([])
   const [score, setScore] = useState<number>(0)
+  const {address, isConnected} = useAccount()
+  const [isSigned, setIsSigned] = useState<boolean>(false)
+  const {signMessageAsync} = useSignMessage()
 
-  useEffect(() => {
-    const initGame = async () => {
-      const response = await fetch('/api', {method: 'GET'})
-      const data = await response.json()
-      setDealerHand(data.dealerHand)
-      setPlayerHand(data.playerHand)
-      setMessage(data.message)
-      setScore(data.score)
-    }
-    initGame()
-  }, [])
+  const initGame = async () => {
+    const response = await fetch('/api', {method: 'GET'})
+    const data = await response.json()
+    setDealerHand(data.dealerHand)
+    setPlayerHand(data.playerHand)
+    setMessage(data.message)
+    setScore(data.score)
+  }
 
   async function handleHit() {
     const response = await fetch('/api', {method: 'POST', body: JSON.stringify({action: 'hit'})})
@@ -46,8 +48,34 @@ export default function Page() {
     setScore(data.score)
   }
 
+  async function handleSign() {
+    const signMessage =  `Welcome to Web3 game Black jack at ${new Date().toLocaleString()}`
+    const signature = await signMessageAsync({message: signMessage})
+    const response = await fetch('/api', {method: 'POST', body: JSON.stringify({
+      action: 'auth',
+      address,
+      message: signMessage,
+      signature
+    })})
+
+    if(response.status === 200) {
+      setIsSigned(true)
+      console.log("Signature is valid")
+      initGame()
+    }
+  }
+
+  if(!isSigned) {
+    return (
+      <div className="flex flex-col gap-2 items-center justify-center h-screen bg-gray-300">
+        <ConnectButton/>
+        { isConnected ? <button onClick={handleSign} className="border-black bg-amber-300 p-2 rounded-md">Sign with your wallet</button> : <h1> Please Connect wallet</h1> }
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col gap-2 items-center justify-center h-screen bg-gray-300">
+      <ConnectButton/>
       <h1 className="text-3xl bold">Welcome to Web3 game Black jack</h1>
       <h2 className={`text-2xl bold ${message.includes("win") ? "bg-green-300" : "bg-amber-300"}`}>Score: {score} {message}</h2>
       <div className="mt-4">

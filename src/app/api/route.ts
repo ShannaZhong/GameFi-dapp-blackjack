@@ -1,3 +1,5 @@
+import { verifyMessage } from "viem";
+
 // when the game is inited, get player and dealer 2 random cards respectiviely
 export interface Card {
   rank: string, 
@@ -58,7 +60,17 @@ export function GET() {
 }
 
 export async function POST(request: Request) {
-  const { action } = await request.json()
+  const body = await request.json()
+  const { action } = body
+  if(action === "auth") {
+    const { address, message, signature } = body;
+    const isVaild = await verifyMessage({address, message, signature})
+    if(!isVaild) {
+      return new Response(JSON.stringify({ message: "Invalid signature" }), {status: 400})
+    } else {
+      return new Response(JSON.stringify({ message: "Valid signature" }), {status: 200})
+    }
+  }
 
   // when hit is clicked, get 1 random card from the deck and add it to the player's hand
   // calculate the points of the player's hand
