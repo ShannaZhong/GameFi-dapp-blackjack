@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { useAccount, useSignMessage } from "wagmi"
+import { saigon } from "viem/chains"
+import { ethers } from "ethers"
 
 export default function Page() {
   const [message, setMessage] = useState("")
@@ -27,6 +29,94 @@ export default function Page() {
     setMessage(data.message)
     setScore(data.score)
   }
+
+  async function mintNFT (recipientAddress: string, tokenURI: string) {
+    // get contract address from env (智能合约地址)
+    const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as any;
+    // get abi 智能合约 ABI（仅包含铸造相关函数示例）
+    const contractAbi = [`${process.env.NEXT_PUBLIC_CONTRACT_ABI || ""}`]
+    
+    try {
+      // 检查 MetaMask 是否安装
+      if (!window.ethereum) {
+        throw new Error('MetaMask is not installed');
+      }
+  
+      // 请求用户连接钱包
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+  
+      // 创建 ethers 提供者
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      // 创建合约实例
+      const contract = new ethers.Contract(contractAddress, contractAbi, signer);
+  
+      // 调用合约的 mintNFT 函数
+      const tx = await contract.mintNFT(recipientAddress, tokenURI);
+      
+      // 等待交易确认
+      const receipt = await tx.wait();
+      // console.log('Transaction receipt:', receipt);
+      
+      // 获取新铸造的 NFT 的 tokenId
+      const tokenId = receipt.logs[0]?.args?.tokenId || receipt.logs[0]?.transactionIndex || 0;
+      // console.log('New NFT minted with tokenId:', tokenId.toString());
+  
+      // 返回交易详情
+      return {
+        success: true,
+        transactionHash: tx.hash,
+        tokenId: tokenId.toString(),
+      };
+    } catch (error: any) {
+      console.error('Minting failed:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  };
+
+  const handleMint = async () => {
+    const recipient = `${address}`; // 实际接收者地址
+    const tokenURI = "ipfs://QmNwBmyiiMWhuJYtv19cybZ2WVcmjaryizvLFtV8t7V6RB"; // 实际的元数据 URI
+
+    // get chain id (链 ID)
+    const SAIGON_CHAIN_ID = saigon.id;
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    // 获取当前网络
+    const network = await provider.getNetwork();
+    const chainId = Number(network.chainId);
+    // 检查是否为 Saigon 网络
+    if (chainId !== SAIGON_CHAIN_ID) {
+      alert("请切换到 Saigon 网络。");
+      try {
+          // 请求用户切换网络
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${SAIGON_CHAIN_ID.toString(16)}` }],
+          });
+          // 等待几秒以确保网络切换完成
+          setTimeout(() => {}, 2000);
+          console.log("已切换到 Saigon 网络。");
+      } catch (error) {
+        console.error("切换网络失败:", error);
+        return {
+          success: false,
+          error: "network error",
+        };
+      }
+    }
+  
+    // 调用 mintNFT 函数 进行铸造
+    const result = await mintNFT(recipient, tokenURI);
+    if (result.success) {
+      console.log(`NFT minted with Token ID: ${result.tokenId}`);
+    } else {
+      console.log(`Minting failed: ${result.error}`);
+    }
+  };
 
   async function handleHit() {
     const response = await fetch('/api', {
@@ -99,6 +189,7 @@ export default function Page() {
       <ConnectButton/>
       <h1 className="text-3xl bold">Welcome to Web3 game Black jack</h1>
       <h2 className={`text-2xl bold ${message.includes("win") ? "bg-green-300" : "bg-amber-300"}`}>Score: {score} {message}</h2>
+      <button className="bg-amber-300 rounded-md p-2" onClick={handleMint}>Get NFT</button>
       <div className="mt-4">
         <h2>Dealer's hand</h2>
         <div className="flex flex-row gap-2">
